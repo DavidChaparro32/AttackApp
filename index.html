@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en-US">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width" />
+        <title>Attack selection</title>
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <h1>Seleccione su tipo de ataque</h1>
+
+        <div id="config">
+            <label for="targetIP">IP Target:</label>
+            <input type="text" id="targetIP" placeholder="192.168.100.230" value="192.168.100.230" />
+            <br/><br/>
+            <label for="targetUser">Username:</label>
+            <input type="text" id="targetUser" placeholder="pspray01" value="pspray01" />
+        </div>
+        <br/>
+
+        <button type="button" class="action-button" onclick="runSpray()">
+            Password Spray
+        </button>
+        <p></p>
+        <button type="button" class="action-button" onclick="runBrute()">
+            Fuerza Bruta
+        </button>
+
+        <div id="output"></div>
+
+        <script>
+            function getConfig() {
+                const ip = document.getElementById('targetIP').value.trim();
+                const user = document.getElementById('targetUser').value.trim();
+                if (!ip || !user) {
+                    alert("Por favor ingresa la IP y el username antes de continuar.");
+                    return null;
+                }
+                return { ip, user };
+            }
+
+            function setButtonsState(disabled, activeBtn) {
+                const sprayBtn = document.querySelector('button[onclick="runSpray()"]');
+                const bruteBtn = document.querySelector('button[onclick="runBrute()"]');
+                sprayBtn.disabled = disabled;
+                bruteBtn.disabled = disabled;
+                if (activeBtn === 'spray') {
+                    sprayBtn.textContent = disabled ? "Ejecutando..." : "Password Spray";
+                    bruteBtn.textContent = "Fuerza Bruta";
+                } else {
+                    bruteBtn.textContent = disabled ? "Ejecutando..." : "Fuerza Bruta";
+                    sprayBtn.textContent = "Password Spray";
+                }
+            }
+
+            async function runSpray() {
+                const config = getConfig();
+                if (!config) return;
+
+                const output = document.getElementById('output');
+                setButtonsState(true, 'spray');
+                output.innerHTML = "<p>Ejecutando ataque Password Spray...</p>";
+
+                try {
+                    const response = await fetch(
+                        `http://localhost:5000/spray?ip=${config.ip}&user=${config.user}`
+                    );
+                    const results = await response.json();
+
+                    output.innerHTML = "<h3>Resultados Password Spray:</h3>";
+                    results.forEach(r => {
+                        const color = r.status === 'success' ? 'green' : 'red';
+                        output.innerHTML += `<p style="color:${color}">
+                            [${r.status.toUpperCase()}] password: ${r.password}
+                        </p>`;
+                    });
+                } catch (e) {
+                    output.innerHTML = `<p style="color:red">Error al conectar con el servidor: ${e}</p>`;
+                } finally {
+                    setButtonsState(false, 'spray');
+                }
+            }
+
+            async function runBrute() {
+                const config = getConfig();
+                if (!config) return;
+
+                const output = document.getElementById('output');
+                setButtonsState(true, 'brute');
+                output.innerHTML = "<p>Ejecutando ataque de Fuerza Bruta... (esto puede tardar)</p>";
+
+                try {
+                    const response = await fetch(
+                        `http://localhost:5000/brute?ip=${config.ip}&user=${config.user}`
+                    );
+                    const results = await response.json();
+
+                    output.innerHTML = "<h3>Resultados Fuerza Bruta:</h3>";
+
+                    const tried = results.find(r => r.status === 'trying');
+                    const final = results.find(r => r.status === 'success' ||
+                                                    r.status === 'not_found' ||
+                                                    r.status === 'error');
+
+                    output.innerHTML += `<p style="color:gray">
+                        Combinaciones probadas: ${tried ? tried.count : '?'}
+                    </p>`;
+
+                    if (final) {
+                        const color = final.status === 'success' ? 'green' : 'red';
+                        const msg = final.status === 'success'
+                            ? `[ÉXITO] Contraseña encontrada: ${final.password}`
+                            : `[${final.status.toUpperCase()}] ${final.message || ''}`;
+                        output.innerHTML += `<p style="color:${color}"><strong>${msg}</strong></p>`;
+                    }
+                } catch (e) {
+                    output.innerHTML = `<p style="color:red">Error al conectar con el servidor: ${e}</p>`;
+                } finally {
+                    setButtonsState(false, 'brute');
+                }
+            }
+        </script>
+    </body>
+</html>
